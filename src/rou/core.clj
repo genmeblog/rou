@@ -56,3 +56,8 @@
                                              :up (move-player-up-down player-position -1 height)
                                              :down (move-player-up-down player-position 1 height)
                                              player-position)))))
+
+(defmethod c2d/key-pressed [game-name \space] [e state]
+  (when (c2d/control-down? e)
+    (c2d/save (:canvas game-display) "screenshots/week1.jpg"))
+  state)
