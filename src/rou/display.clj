@@ -2,16 +2,8 @@
   (:require [clojure2d.core :as c2d]
             [clojure.string :as str]
             [clojure.java.io :as io]
-            [fastmath.core :as m]))
-
-(def config-template
-  {:font-name "Mx437_IBM_BIOS.ttf"
-   :font-size 16
-   :font-height-correction 0
-   :width 80
-   :height 50
-   :border 20
-   :name "ROU"})
+            [fastmath.core :as m]
+            [rou.config :as config]))
 
 (defn- get-font
   [font]
@@ -47,24 +39,26 @@
         (c2d/text canvas txt xx yy)))))
 
 (defn draw-tile
-  [canvas tile]
-  (let [{:keys [ch bg fg]} (:glyph tile)
-        {:keys [^long x ^long y]} (:position tile)]
-    (when bg (-> canvas
-                 (c2d/set-color bg)
-                 (draw-text "█" x y)))
-    (-> canvas
-        (c2d/set-color (or fg :white))
-        (draw-text ch x y))))
+  ([canvas ch bg fg x y]
+   (when bg (-> canvas
+                (c2d/set-color bg)
+                (draw-text "█" x y)))
+   (-> canvas
+       (c2d/set-color (or fg :white))
+       (draw-text ch x y)))
+  ([canvas tile]
+   (let [{:keys [position ch bg fg]} tile
+         [^long x ^long y] position]
+     (draw-tile canvas ch bg fg x y))))
 
 (defn display
   ([world tick-fn] (display world tick-fn {}))
   ([world tick-fn config]
    (let [{:keys [font-metrics font ^long font-size name
                  ^long width ^long height
-                 ^long border] :as config} (->> config
-                                                (merge config-template)
-                                                (calc-font-metrics))
+                 ^long border custom-event?] :as config} (->> config
+                                                              (merge config/config-template)
+                                                              (calc-font-metrics))
          {:keys [^long fw ^long fh]} font-metrics
          canvas (c2d/canvas {:width (+ border (* fw width))
                              :height (+ border (* fh height))
@@ -73,12 +67,14 @@
          hborder (/ border 2)
          window (c2d/show-window {:canvas canvas
                                   :fps 60
-                                  :draw-fn (fn [c w f _]
+                                  :draw-fn (fn [c w f s]
                                              (let [wstate (c2d/get-state w)]
                                                (c2d/translate c hborder hborder)
                                                (c2d/set-font-attributes c font-size)
-                                               (c2d/set-state! w (tick-fn c w f wstate))))
-                                  :state (assoc world :rou/config config)
+                                               (let [new-state (tick-fn c w f s wstate)]
+                                                 (when custom-event? (c2d/fire-custom-event w s))
+                                                 new-state)))
+                                  :state (assoc (world config) :rou/config config)
                                   :window-name name})]
      (extend clojure2d.core.Canvas
        DisplayProto {:draw-text (make-draw-text config)})
